@@ -1,13 +1,13 @@
 {
   "name": "blog-summarizer",
   "version": "1.0.0",
-  "description": "A TypeScript web scraping application using HTTP to traverse URLs and scrape blog posts",
-  "main": "dist/scraper/main.js",
+  "description": "A TypeScript web application using AI integration to summarize blog posts",
+  "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
-    "start": "npm run build && node dist/scraper/main.js",
+    "start": "npm run build && node dist/main.js",
     "format": "prettier --write .",
-    "dev": "ts-node src/scraper/main.ts",
+    "dev": "ts-node main.ts",
     "test": "ts-node test.ts"
   },
   "devDependencies": {
@@ -17,6 +17,7 @@
     "prettier": "^3.6.2"
   },
   "keywords": [
+    "ai",
     "web-scraping",
     "playwright",
     "typescript",
