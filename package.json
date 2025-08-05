@@ -5,10 +5,11 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
-    "start": "npm run build && node dist/main.js",
+    "start": "npm run build && node --env-file=.env dist/main.js",
     "format": "prettier --write .",
-    "dev": "ts-node main.ts",
-    "test": "ts-node test.ts"
+    "dev": "node --env-file=.env -r ts-node/register src/main.ts",
+    "dev:ts-node": "ts-node --env-file=.env src/main.ts",
+    "test": "node --env-file=.env -r ts-node/register src/test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
