@@ -48,8 +48,10 @@ export async function runSitemapBasedScraper(
     return [];
   }
 
+  const urlsToScrape = config.limit && config.limit < allPostUrls.length ? config.limit : allPostUrls.length;
+  
   console.log(
-    `\n🚀 Starting to scrape ${allPostUrls.length} discovered post URLs...`,
+    `\n🚀 Starting to scrape ${urlsToScrape} discovered post URLs${config.limit ? ` (limited from ${allPostUrls.length})` : ''}...`,
   );
   return await runDirectScraper(allPostUrls, config);
 }
@@ -58,7 +60,9 @@ export async function runDirectScraper(
   urls: string[],
   config: Partial<ScrapingConfig> = {},
 ): Promise<ScrapingResult[]> {
-  console.log(`📄 Starting direct scraping of ${urls.length} URLs...`);
+  const urlsToProcess = config.limit && config.limit < urls.length ? config.limit : urls.length;
+  
+  console.log(`📄 Starting direct scraping of ${urlsToProcess} URLs${config.limit && config.limit < urls.length ? ` (limited from ${urls.length})` : ''}...`);
 
   try {
     const scrapingResults = await scrapeMultipleUrlsWithHttp(urls, config);
@@ -73,8 +77,6 @@ export async function runDirectScraper(
     return [];
   }
 }
-
-
 
 if (require.main === module) {
   const customUrls = process.argv.slice(2);
@@ -94,14 +96,18 @@ if (require.main === module) {
       console.log('🔍 Detected base URLs - using sitemap discovery mode');
       runSitemapBasedScraper(customUrls)
         .then((results) => {
-          console.log(`\n✅ Scraping completed! Found ${results.filter(r => r.success).flatMap(r => r.posts).length} total posts from ${results.filter(r => r.success).length} successful URLs.`);
+          console.log(
+            `\n✅ Scraping completed! Found ${results.filter((r) => r.success).flatMap((r) => r.posts).length} total posts from ${results.filter((r) => r.success).length} successful URLs.`,
+          );
         })
         .catch(console.error);
     } else {
       console.log('📄 Detected specific URLs - using direct scraping mode');
       runDirectScraper(customUrls)
         .then((results) => {
-          console.log(`\n✅ Scraping completed! Found ${results.filter(r => r.success).flatMap(r => r.posts).length} total posts from ${results.filter(r => r.success).length} successful URLs.`);
+          console.log(
+            `\n✅ Scraping completed! Found ${results.filter((r) => r.success).flatMap((r) => r.posts).length} total posts from ${results.filter((r) => r.success).length} successful URLs.`,
+          );
         })
         .catch(console.error);
     }
@@ -109,7 +115,9 @@ if (require.main === module) {
     console.log('🌐 No URLs provided - using default sitemap discovery mode');
     runSitemapBasedScraper(DEFAULT_BASE_URLS)
       .then((results) => {
-        console.log(`\n✅ Scraping completed! Found ${results.filter(r => r.success).flatMap(r => r.posts).length} total posts from ${results.filter(r => r.success).length} successful URLs.`);
+        console.log(
+          `\n✅ Scraping completed! Found ${results.filter((r) => r.success).flatMap((r) => r.posts).length} total posts from ${results.filter((r) => r.success).length} successful URLs.`,
+        );
       })
       .catch(console.error);
   }

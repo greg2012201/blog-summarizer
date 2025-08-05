@@ -58,9 +58,7 @@ export async function scrapeUrlWithHttp(
 function parseHtmlForPosts(html: string, sourceUrl: string): BlogPost[] {
   const posts: BlogPost[] = [];
 
-
   const postSelectors = [
-
     /<article[^>]*>([\s\S]*?)<\/article>/gi,
 
     /<div[^>]*class="[^"]*(?:post|article|entry|blog)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
@@ -94,11 +92,9 @@ function extractPostData(
   sourceUrl: string,
   index: number,
 ): BlogPost {
-
   const titleRegex = /<h[1-6][^>]*>(.*?)<\/h[1-6]>/i;
   const titleMatch = postHtml.match(titleRegex);
   const title = titleMatch ? stripHtml(titleMatch[1]).trim() : '';
-
 
   const contentRegex = /<p[^>]*>(.*?)<\/p>/gi;
   const contentMatches = postHtml.matchAll(contentRegex);
@@ -108,18 +104,15 @@ function extractPostData(
   }
   content = content.trim();
 
-
   const dateRegex = /<time[^>]*(?:datetime="([^"]*)")?[^>]*>(.*?)<\/time>/i;
   const dateMatch = postHtml.match(dateRegex);
   const date = dateMatch
     ? (dateMatch[1] || stripHtml(dateMatch[2])).trim()
     : '';
 
-
   const linkRegex = /<a[^>]*href="([^"]*)"[^>]*>/i;
   const linkMatch = postHtml.match(linkRegex);
   let link = linkMatch ? linkMatch[1] : sourceUrl;
-
 
   if (link.startsWith('/')) {
     const urlObj = new URL(sourceUrl);
@@ -156,12 +149,15 @@ export async function scrapeMultipleUrlsWithHttp(
 ): Promise<ScrapingResult[]> {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
   const results: ScrapingResult[] = [];
-
+  let processed = 0;
   for (const url of urls) {
     try {
+      if (config.limit && processed >= config.limit) {
+        break;
+      }
       const result = await scrapeUrlWithHttp(url, finalConfig);
       results.push(result);
-
+      processed++;
 
       if (finalConfig.delayBetweenRequests > 0) {
         await new Promise((resolve) =>
