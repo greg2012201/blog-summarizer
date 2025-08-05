@@ -13,6 +13,7 @@ export interface ScrapingConfig {
   timeout: number;
   delayBetweenRequests: number;
   userAgent: string;
+  limit?: number;
 }
 
 export interface ScrapingResult {
