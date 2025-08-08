@@ -10,5 +10,3 @@ export type Document = {
   selector: string;
   index: number;
 };
-
-export type MapSummarizeResult = z.infer<typeof MapSummarizeSchema>[];

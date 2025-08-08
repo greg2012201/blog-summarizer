@@ -1,9 +1,13 @@
-import type { Document as LocalDocument, MapSummarizeResult } from './type';
+import type { Document as LocalDocument } from './type';
 import { Document } from '@langchain/core/documents';
-import { TokenTextSplitter } from '@langchain/textsplitters';
+import {
+  TokenTextSplitter,
+  RecursiveCharacterTextSplitter,
+} from '@langchain/textsplitters';
 import { ChatOpenAI } from '@langchain/openai';
 import { MapSummarizeSchema } from './schema';
 import { mapTemplate, reduceTemplate } from './prompts';
+import { CHUNK_SIZE } from './const';
 
 const model = new ChatOpenAI({
   model: 'gpt-4o-mini',
@@ -12,69 +16,73 @@ const model = new ChatOpenAI({
 });
 
 const textSplitter = new TokenTextSplitter({
-  chunkSize: 500,
+  chunkSize: CHUNK_SIZE,
   chunkOverlap: 0,
 });
 
-async function mapCalls(langchainDocs: Document[]) {
+const recursiveTextSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: CHUNK_SIZE,
+  chunkOverlap: 0,
+});
+
+async function mapCalls(langchainDocs: Document[]): Promise<string[]> {
   console.log('Summarization started...');
   const splitDocs = await textSplitter.splitDocuments(langchainDocs);
-  const modelWithStructured = model.withStructuredOutput({
-    name: 'summarize',
-    schema: MapSummarizeSchema,
-  });
-  console.log('calls', splitDocs.length);
-  const promises = splitDocs.map((doc) => {
-    return modelWithStructured.invoke([
+
+  const results = await model.batch(
+    splitDocs.map((doc) => [
       {
         role: 'user',
-        content: mapTemplate({
-          title: doc.metadata.title,
-          content: doc.pageContent,
-        }),
+        content: mapTemplate(doc.pageContent),
       },
-    ]);
-  });
+    ]),
+  );
 
-  const results = await Promise.all(promises);
-
-  return results as MapSummarizeResult;
+  return results.map((result) => result.content as string);
 }
 
-function collapseSummaries(summaries: MapSummarizeResult) {
-  const summariesMap = new Map<string, string>();
-
-  const collapsed: { title: string; summary: string }[] = [];
-
-  summaries.forEach((summary) => {
-    if (summariesMap.has(summary.title)) {
-      summariesMap.set(
-        summary.title,
-        summariesMap.get(summary.title) + summary.summary,
-      );
-    } else {
-      summariesMap.set(summary.title, summary.summary);
-    }
-  });
-
-  summariesMap.forEach((summary, title) => {
-    collapsed.push({ title, summary });
-  });
-
-  return collapsed;
-}
-
-async function generateFinallSummary(summaries: MapSummarizeResult) {
+async function reduceSummaries(summaries: string[]) {
   const result = await model.invoke([
     {
       role: 'user',
-      content: reduceTemplate(summaries.map((s) => s.summary).join('\n\n')),
+      content: reduceTemplate(summaries.join('\n\n')),
     },
   ]);
-  return result;
+  return result.content as string;
+}
+async function collapseSummaries(summaries: string[]) {
+  console.log('Collapsing summaries...');
+  if (summaries.length === 0) {
+    return [];
+  }
+  const splitDocLists: Document[][] = [];
+
+  for (const summary of summaries) {
+    const splitText = await recursiveTextSplitter.splitText(summary);
+    splitDocLists.push(
+      splitText.map((text) => new Document({ pageContent: text })),
+    );
+  }
+
+  const reduceCalls = splitDocLists.map((splitDocs) => {
+    return reduceSummaries(splitDocs.map((doc) => doc.pageContent));
+  });
+  const reduceResults = await Promise.all(reduceCalls);
+  const results = reduceResults.map((reduced) => {
+    return new Document({ pageContent: reduced });
+  });
+
+  return results;
 }
 
-export async function summarizeDocuments(documents: LocalDocument[]) {
+async function lengthFunction(documents: Document[]) {
+  return model.getNumTokens(documents.map((doc) => doc.pageContent).join('\n'));
+}
+
+export async function summarizeDocuments(
+  documents: LocalDocument[],
+  maxIterations = 5,
+) {
   const langchainDocs = documents.map(
     (doc) =>
       new Document({
@@ -91,10 +99,26 @@ export async function summarizeDocuments(documents: LocalDocument[]) {
   );
 
   const summaries = await mapCalls(langchainDocs);
+  console.log('mapCalls completed', summaries);
 
-  const collapsed = collapseSummaries(summaries);
+  let collapsedSummariesDocs = await collapseSummaries(summaries);
 
-  const finalSummary = await generateFinallSummary(collapsed);
+  let tokenCount = await lengthFunction(collapsedSummariesDocs);
+  console.log('Token count:', tokenCount);
+  let iteration = 0;
+  while (tokenCount > 2000 && iteration < maxIterations) {
+    console.log('Token count exceeds limit, collapsing summaries further...');
 
+    collapsedSummariesDocs = await collapseSummaries(
+      collapsedSummariesDocs.map((doc) => doc.pageContent),
+    );
+    tokenCount = await lengthFunction(collapsedSummariesDocs);
+    console.log('Updated token count:', tokenCount);
+    iteration++;
+  }
+
+  const finalSummary = await reduceSummaries(
+    collapsedSummariesDocs.map((doc) => doc.pageContent),
+  );
   console.log('finalSummary', finalSummary);
 }
