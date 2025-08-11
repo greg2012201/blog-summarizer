@@ -76,7 +76,12 @@ async function collapseSummaries(summaries: string[]) {
 }
 
 async function lengthFunction(documents: Document[]) {
-  return model.getNumTokens(documents.map((doc) => doc.pageContent).join('\n'));
+  const tokenCounts = await Promise.all(
+    documents.map(async (doc) => {
+      return model.getNumTokens(doc.pageContent);
+    }),
+  );
+  return tokenCounts.reduce((sum, count) => sum + count, 0);
 }
 
 export async function summarizeDocuments(
