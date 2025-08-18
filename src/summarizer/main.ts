@@ -5,7 +5,6 @@ import {
   RecursiveCharacterTextSplitter,
 } from '@langchain/textsplitters';
 import { ChatOpenAI } from '@langchain/openai';
-import { MapSummarizeSchema } from './schema';
 import { mapTemplate, reduceTemplate } from './prompts';
 import { CHUNK_SIZE } from './const';
 
@@ -50,7 +49,11 @@ async function reduceSummaries(summaries: string[]) {
   ]);
   return result.content as string;
 }
-async function collapseSummaries(summaries: string[]) {
+async function collapseSummaries(
+  summaries: string[],
+  recursionLimit = 5,
+  iteration = 0,
+) {
   console.log('Collapsing summaries...');
   if (summaries.length === 0) {
     return [];
@@ -71,7 +74,15 @@ async function collapseSummaries(summaries: string[]) {
   const results = reduceResults.map((reduced) => {
     return new Document({ pageContent: reduced });
   });
-
+  let tokenCount = await lengthFunction(results);
+  if (tokenCount > 2000 && iteration < recursionLimit) {
+    console.log('Token count exceeds limit, collapsing summaries further...');
+    return collapseSummaries(
+      results.map((doc) => doc.pageContent),
+      recursionLimit,
+      iteration + 1,
+    );
+  }
   return results;
 }
 
@@ -104,23 +115,10 @@ export async function summarizeDocuments(
   );
 
   const summaries = await mapCalls(langchainDocs);
-  console.log('mapCalls completed', summaries);
-
-  let collapsedSummariesDocs = await collapseSummaries(summaries);
-
-  let tokenCount = await lengthFunction(collapsedSummariesDocs);
-  console.log('Token count:', tokenCount);
-  let iteration = 0;
-  while (tokenCount > 2000 && iteration < maxIterations) {
-    console.log('Token count exceeds limit, collapsing summaries further...');
-
-    collapsedSummariesDocs = await collapseSummaries(
-      collapsedSummariesDocs.map((doc) => doc.pageContent),
-    );
-    tokenCount = await lengthFunction(collapsedSummariesDocs);
-    console.log('Updated token count:', tokenCount);
-    iteration++;
-  }
+  const collapsedSummariesDocs = await collapseSummaries(
+    summaries,
+    maxIterations,
+  );
 
   const finalSummary = await reduceSummaries(
     collapsedSummariesDocs.map((doc) => doc.pageContent),
