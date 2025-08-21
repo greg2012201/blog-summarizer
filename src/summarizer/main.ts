@@ -111,7 +111,7 @@ async function collapseSummaries(
   if (summaries.length === 0) {
     return [];
   }
-  const splitDocLists = await splitSummariesByTokenLimit(summaries, 1000);
+  const splitDocLists = await splitSummariesByTokenLimit(summaries, CHUNK_SIZE);
 
   const results = await reduceSummariesBatch(splitDocLists);
 
