@@ -42,33 +42,26 @@ export async function splitSummariesByTokenLimit(
   summaries: string[],
   tokenLimit: number,
 ): Promise<string[][]> {
-  const result: string[][] = [];
-  let currentList: string[] = [];
+  const listOfSummariesSublists: string[][] = [];
+  let sublist: string[] = [];
   for (const summary of summaries) {
-    let summaryTokens = await model.getNumTokens(summary);
-    let chunks: string[] = [];
-    if (summaryTokens > tokenLimit) {
-      // Split the summary into chunks using textSplitter
-      chunks = await recursiveTextSplitter.splitText(summary);
-    } else {
-      chunks = [summary];
-    }
+    const chunks = await recursiveTextSplitter.splitText(summary);
     for (const chunk of chunks) {
-      const candidateList = [...currentList, chunk];
+      const candidateList = [...sublist, chunk];
       const candidateTokens = await lengthFunction(candidateList);
       if (candidateTokens > tokenLimit) {
-        if (currentList.length > 0) {
-          result.push(currentList);
-          currentList = [];
+        if (sublist.length > 0) {
+          listOfSummariesSublists.push(sublist);
+          sublist = [];
         }
       }
-      currentList.push(chunk);
+      sublist.push(chunk);
     }
   }
-  if (currentList.length > 0) {
-    result.push(currentList);
+  if (sublist.length > 0) {
+    listOfSummariesSublists.push(sublist);
   }
-  return result;
+  return listOfSummariesSublists;
 }
 
 async function runMappers(formattedDocs: Document[]): Promise<string[]> {
