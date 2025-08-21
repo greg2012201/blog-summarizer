@@ -23,6 +23,9 @@ const textSplitter = new TokenTextSplitter({
 
 const recursiveTextSplitter = new RecursiveCharacterTextSplitter({
   chunkSize: CHUNK_SIZE,
+  lengthFunction: (text) => {
+    return model.getNumTokens(text);
+  },
   chunkOverlap: 0,
 });
 
