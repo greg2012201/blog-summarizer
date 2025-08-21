@@ -1,3 +1,5 @@
+// Helper to split summaries into sublists by token limit
+
 import type { Document as LocalDocument } from './type';
 import { Document } from '@langchain/core/documents';
 import {
@@ -24,9 +26,51 @@ const recursiveTextSplitter = new RecursiveCharacterTextSplitter({
   chunkOverlap: 0,
 });
 
-async function mapCalls(langchainDocs: Document[]): Promise<string[]> {
+async function lengthFunction(summaries: string[]) {
+  const tokenCounts = await Promise.all(
+    summaries.map(async (summary) => {
+      return model.getNumTokens(summary);
+    }),
+  );
+  return tokenCounts.reduce((sum, count) => sum + count, 0);
+}
+
+export async function splitSummariesByTokenLimit(
+  summaries: string[],
+  tokenLimit: number,
+): Promise<string[][]> {
+  const result: string[][] = [];
+  let currentList: string[] = [];
+  for (const summary of summaries) {
+    let summaryTokens = await model.getNumTokens(summary);
+    let chunks: string[] = [];
+    if (summaryTokens > tokenLimit) {
+      // Split the summary into chunks using textSplitter
+      chunks = await recursiveTextSplitter.splitText(summary);
+    } else {
+      chunks = [summary];
+    }
+    for (const chunk of chunks) {
+      const candidateList = [...currentList, chunk];
+      const candidateTokens = await lengthFunction(candidateList);
+      if (candidateTokens > tokenLimit) {
+        if (currentList.length > 0) {
+          result.push(currentList);
+          currentList = [];
+        }
+      }
+      currentList.push(chunk);
+    }
+  }
+  if (currentList.length > 0) {
+    result.push(currentList);
+  }
+  return result;
+}
+
+async function runMappers(formattedDocs: Document[]): Promise<string[]> {
   console.log('Summarization started...');
-  const splitDocs = await textSplitter.splitDocuments(langchainDocs);
+  const splitDocs = await textSplitter.splitDocuments(formattedDocs);
 
   const results = await model.batch(
     splitDocs.map((doc) => [
@@ -40,6 +84,18 @@ async function mapCalls(langchainDocs: Document[]): Promise<string[]> {
   return results.map((result) => result.content as string);
 }
 
+async function reduceSummariesBatch(listOfSummaries: string[][]) {
+  const result = await model.batch(
+    listOfSummaries.map((summaries) => [
+      {
+        role: 'user',
+        content: reduceTemplate(summaries.join('\n\n')),
+      },
+    ]),
+  );
+  return result.map((res) => res.content as string);
+}
+
 async function reduceSummaries(summaries: string[]) {
   const result = await model.invoke([
     {
@@ -49,6 +105,7 @@ async function reduceSummaries(summaries: string[]) {
   ]);
   return result.content as string;
 }
+
 async function collapseSummaries(
   summaries: string[],
   recursionLimit = 5,
@@ -58,18 +115,10 @@ async function collapseSummaries(
   if (summaries.length === 0) {
     return [];
   }
-  const splitDocLists: string[][] = [];
+  const splitDocLists = await splitSummariesByTokenLimit(summaries, 1000);
 
-  for (const summary of summaries) {
-    const splitText = await recursiveTextSplitter.splitText(summary);
-    splitDocLists.push(splitText);
-  }
+  const results = await reduceSummariesBatch(splitDocLists);
 
-  const reduceCalls = splitDocLists.map((splitDocs) => {
-    return reduceSummaries(splitDocs);
-  });
-  const reduceResults = await Promise.all(reduceCalls);
-  const results = reduceResults;
   let shouldCollapse = await checkShouldCollapse(results);
   if (shouldCollapse && iteration < recursionLimit) {
     console.log('Token count exceeds limit, collapsing summaries further...');
@@ -78,25 +127,16 @@ async function collapseSummaries(
   return results;
 }
 
-async function lengthFunction(summaries: string[]) {
-  const tokenCounts = await Promise.all(
-    summaries.map(async (summary) => {
-      return model.getNumTokens(summary);
-    }),
-  );
-  return tokenCounts.reduce((sum, count) => sum + count, 0);
-}
-
 async function checkShouldCollapse(summaries: string[]) {
   const tokenCount = await lengthFunction(summaries);
-  return tokenCount > 2000;
+  return tokenCount > 1000;
 }
 
 export async function summarizeDocuments(
   documents: LocalDocument[],
   maxIterations = 5,
 ) {
-  const langchainDocs = documents.map(
+  const formattedDocs = documents.map(
     (doc) =>
       new Document({
         pageContent: doc.content,
@@ -111,7 +151,7 @@ export async function summarizeDocuments(
       }),
   );
 
-  let summaries = await mapCalls(langchainDocs);
+  let summaries = await runMappers(formattedDocs);
 
   const shouldCollapse = await checkShouldCollapse(summaries);
   if (shouldCollapse) {
