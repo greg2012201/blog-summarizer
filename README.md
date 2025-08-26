@@ -21,12 +21,6 @@ A Node.js/TypeScript project for summarizing documents using OpenAI models, with
    npx vitest
    ```
 
-## File Structure
-
-- `src/summarizer/main.ts` — Main summarization logic and helpers.
-- `src/summarizer/splitSummariesByTokenLimit.test.ts` — Unit tests for summary splitting.
-- Other files — Document loading, formatting, and utility functions.
-
 ## License
 
 MIT
