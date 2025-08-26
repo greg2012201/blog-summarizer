@@ -11,8 +11,7 @@ import { mapTemplate, reduceTemplate } from './prompts';
 import { CHUNK_SIZE } from './const';
 
 const model = new ChatOpenAI({
-  model: 'gpt-4o-mini',
-  temperature: 0,
+  model: 'gpt-5-mini',
   apiKey: process.env.OPENAI_API_KEY,
 });
 
