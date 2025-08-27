@@ -1,6 +1,6 @@
 # Blog Summarizer
 
-A Node.js/TypeScript project for summarizing documents using OpenAI models, with robust handling of token limits and chunking.
+A Node.js/TypeScript project for summarizing documents using OpenAI models, with robust handling of token limits and chunking. The project was created for the purpose of [this article](https://www.aboutjs.dev/en/posts/turning-entire-blogs-into-short-summaries-map-reduce-for-llms) [published on about.js tech blog](https://www.aboutjs.dev/).
 
 ## Usage
 
