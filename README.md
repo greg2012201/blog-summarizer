@@ -16,10 +16,6 @@ A Node.js/TypeScript project for summarizing documents using OpenAI models, with
    ```sh
    npm start
    ```
-4. Run tests:
-   ```sh
-   npx vitest
-   ```
 
 ## License
 
